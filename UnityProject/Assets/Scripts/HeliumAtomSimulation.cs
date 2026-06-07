@@ -60,8 +60,10 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
     private float cameraYaw;
     private float cameraPitch = 22.0f;
     private float orbitAngle;
+    private float simulationTime;
     private int selectedElementIndex = 1;
     private int pendingElementIndex = -1;
+    private bool isPaused;
     private GUIStyle panelStyle;
     private GUIStyle selectedButtonStyle;
     private float previousPinchDistance;
@@ -108,13 +110,20 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
 
         if (nucleusRoot == null)
         {
+            UpdateCameraControls();
+            UpdateTouchControls();
             return;
         }
 
-        nucleusRoot.Rotate(Vector3.up, nucleusSpinSpeed * Time.deltaTime, Space.World);
+        if (!isPaused)
+        {
+            simulationTime += Time.deltaTime;
+            nucleusRoot.Rotate(Vector3.up, nucleusSpinSpeed * Time.deltaTime, Space.World);
 
-        orbitAngle += electronOrbitSpeed * Time.deltaTime;
-        UpdateElectronPositions();
+            orbitAngle += electronOrbitSpeed * Time.deltaTime;
+            UpdateElectronPositions();
+        }
+
         UpdateCameraControls();
         UpdateTouchControls();
     }
@@ -149,7 +158,7 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
         float scaledWidth = Screen.width / scale;
         float scaledHeight = Screen.height / scale;
         float panelWidth = scaledWidth < 520.0f ? scaledWidth - 24.0f : 230.0f;
-        float panelHeight = Mathf.Min(scaledHeight - 24.0f, 430.0f);
+        float panelHeight = Mathf.Min(scaledHeight - 24.0f, 560.0f);
 
         GUI.Box(new Rect(12.0f, 12.0f, panelWidth, panelHeight), GUIContent.none, panelStyle);
         float x = 24.0f;
@@ -166,6 +175,13 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
         y += 22.0f;
         GUI.Label(new Rect(x, y, contentWidth, 22.0f), $"전자 배치: {FormatShells(GetShellCounts(selected.Electrons))}");
         y += 34.0f;
+
+        if (GUI.Button(new Rect(x, y, contentWidth, 30.0f), isPaused ? "재생" : "정지"))
+        {
+            isPaused = !isPaused;
+        }
+
+        y += 42.0f;
 
         DrawElementButtons(x, y, contentWidth);
 
@@ -224,14 +240,22 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
     private void BuildNucleus(ElementData element)
     {
         int totalNucleons = element.Protons + element.Neutrons;
-        for (int i = 0; i < element.Protons; i++)
-        {
-            CreateParticle(protonTemplate, $"Proton {i + 1}", nucleusRoot, GetNucleonPosition(i, totalNucleons), 0.52f);
-        }
+        int protonsPlaced = 0;
+        int neutronsPlaced = 0;
 
-        for (int i = 0; i < element.Neutrons; i++)
+        for (int i = 0; i < totalNucleons; i++)
         {
-            CreateParticle(neutronTemplate, $"Neutron {i + 1}", nucleusRoot, GetNucleonPosition(element.Protons + i, totalNucleons), 0.52f);
+            bool placeProton = ShouldPlaceProton(element, protonsPlaced, neutronsPlaced);
+            if (placeProton)
+            {
+                protonsPlaced++;
+                CreateParticle(protonTemplate, $"Proton {protonsPlaced}", nucleusRoot, GetNucleonPosition(i, totalNucleons), 0.56f);
+            }
+            else
+            {
+                neutronsPlaced++;
+                CreateParticle(neutronTemplate, $"Neutron {neutronsPlaced}", nucleusRoot, GetNucleonPosition(i, totalNucleons), 0.56f);
+            }
         }
     }
 
@@ -433,7 +457,7 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
         {
             Phase = zeroBasedElectronIndex * 73.0f,
             SpeedMultiplier = UnityEngine.Random.Range(0.82f, 1.18f),
-            MoveUntil = Time.time + UnityEngine.Random.Range(1.0f, 5.0f),
+            MoveUntil = simulationTime + UnityEngine.Random.Range(1.0f, 5.0f),
             HiddenUntil = -1.0f
         };
 
@@ -487,7 +511,7 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
 
     private void UpdateVisibilityCycle(ref ElectronMotion motion)
     {
-        float now = Time.time;
+        float now = simulationTime;
         if (!motion.Hidden && now >= motion.MoveUntil)
         {
             motion.Hidden = true;
@@ -551,12 +575,31 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
         }
 
         float goldenAngle = Mathf.PI * (3.0f - Mathf.Sqrt(5.0f));
-        float y = 1.0f - index / (float)(total - 1) * 2.0f;
-        float radius = Mathf.Sqrt(1.0f - y * y);
+        float normalizedIndex = index + 0.5f;
+        float y = 1.0f - normalizedIndex / total * 2.0f;
+        float radius = Mathf.Sqrt(Mathf.Max(0.0f, 1.0f - y * y));
         float theta = goldenAngle * index;
         Vector3 direction = new(Mathf.Cos(theta) * radius, y, Mathf.Sin(theta) * radius);
-        float clusterRadius = 0.36f + Mathf.Pow(total, 1.0f / 3.0f) * 0.15f;
-        return direction * clusterRadius;
+        float radialFill = Mathf.Pow(normalizedIndex / total, 1.0f / 3.0f);
+        float clusterRadius = 0.2f + Mathf.Pow(total, 1.0f / 3.0f) * 0.2f;
+        return direction * radialFill * clusterRadius;
+    }
+
+    private static bool ShouldPlaceProton(ElementData element, int protonsPlaced, int neutronsPlaced)
+    {
+        if (protonsPlaced >= element.Protons)
+        {
+            return false;
+        }
+
+        if (neutronsPlaced >= element.Neutrons)
+        {
+            return true;
+        }
+
+        float protonProgress = protonsPlaced / (float)element.Protons;
+        float neutronProgress = neutronsPlaced / (float)element.Neutrons;
+        return protonProgress <= neutronProgress;
     }
 
     private void InitializeGuiStyles()
