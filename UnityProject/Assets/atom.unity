@@ -523,6 +523,7 @@ MonoBehaviour:
   shellSpacing: 1.45
   electronOrbitSpeed: 90
   nucleusSpinSpeed: 18
+  nucleusHideRadius: 0.7
   cameraDistance: 10
   minCameraDistance: 4
   maxCameraDistance: 18

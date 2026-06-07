@@ -40,6 +40,7 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
     [SerializeField] private float shellSpacing = 1.45f;
     [SerializeField] private float electronOrbitSpeed = 90.0f;
     [SerializeField] private float nucleusSpinSpeed = 18.0f;
+    [SerializeField] private float nucleusHideRadius = 0.7f;
 
     [Header("Camera")]
     [SerializeField] private float cameraDistance = 10.0f;
@@ -54,8 +55,7 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
     private Transform nucleusRoot;
     private Transform electronRoot;
     private Transform[] electrons = Array.Empty<Transform>();
-    private int[] electronShells = Array.Empty<int>();
-    private float[] electronOffsets = Array.Empty<float>();
+    private ElectronMotion[] electronMotions = Array.Empty<ElectronMotion>();
     private Camera orbitCamera;
     private float cameraYaw;
     private float cameraPitch = 22.0f;
@@ -134,7 +134,7 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
         GUILayout.Label($"양성자: {selected.Protons}");
         GUILayout.Label($"중성자: {selected.Neutrons}");
         GUILayout.Label($"전자: {selected.Electrons}");
-        GUILayout.Label($"전자껍질: {FormatShells(GetShellCounts(selected.Electrons))}");
+        GUILayout.Label($"전자 배치: {FormatShells(GetShellCounts(selected.Electrons))}");
         GUILayout.Space(10.0f);
 
         for (int row = 0; row < 10; row++)
@@ -200,32 +200,14 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
         electronRoot = new GameObject("Electrons").transform;
         electronRoot.SetParent(runtimeRoot, false);
 
-        int[] shellCounts = GetShellCounts(element.Electrons);
         electrons = new Transform[element.Electrons];
-        electronShells = new int[element.Electrons];
-        electronOffsets = new float[element.Electrons];
+        electronMotions = new ElectronMotion[element.Electrons];
 
-        int electronIndex = 0;
-        for (int shell = 0; shell < shellCounts.Length; shell++)
+        for (int i = 0; i < element.Electrons; i++)
         {
-            int shellElectronCount = shellCounts[shell];
-            if (shellElectronCount == 0)
-            {
-                continue;
-            }
-
-            float radius = GetShellRadius(shell);
-            Quaternion ringRotation = Quaternion.Euler(shell * 18.0f, 0.0f, shell * 41.0f);
-            CreateOrbitRing(runtimeRoot, $"Electron Shell {shell + 1}", radius, ringRotation);
-
-            for (int i = 0; i < shellElectronCount; i++)
-            {
-                Transform electron = CreateParticle(electronTemplate, $"Electron {electronIndex + 1}", electronRoot, Vector3.zero, 0.32f).transform;
-                electrons[electronIndex] = electron;
-                electronShells[electronIndex] = shell;
-                electronOffsets[electronIndex] = 360.0f / shellElectronCount * i;
-                electronIndex++;
-            }
+            Transform electron = CreateParticle(electronTemplate, $"Electron {i + 1}", electronRoot, Vector3.zero, 0.32f).transform;
+            electrons[i] = electron;
+            electronMotions[i] = CreateElectronMotion(i);
         }
 
         UpdateElectronPositions();
@@ -246,39 +228,17 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
     {
         for (int i = 0; i < electrons.Length; i++)
         {
-            int shell = electronShells[i];
-            float radius = GetShellRadius(shell);
-            float radians = (orbitAngle * (1.0f + shell * 0.18f) + electronOffsets[i]) * Mathf.Deg2Rad;
-            Vector3 orbitPosition = new(
-                Mathf.Cos(radians) * radius,
-                0.0f,
-                Mathf.Sin(radians) * radius);
+            ElectronMotion motion = electronMotions[i];
+            UpdateVisibilityCycle(ref motion);
 
-            Quaternion tilt = Quaternion.Euler(shell * 18.0f, 0.0f, shell * 41.0f);
-            electrons[i].position = tilt * orbitPosition;
-        }
-    }
+            Vector3 position = motion.Shape == OrbitalShape.Sphere
+                ? GetSphericalOrbitalPosition(motion)
+                : GetDumbbellOrbitalPosition(motion);
 
-    private void CreateOrbitRing(Transform parent, string objectName, float radius, Quaternion rotation)
-    {
-        GameObject ringObject = new(objectName);
-        ringObject.transform.SetParent(parent, false);
-        ringObject.transform.rotation = rotation;
-
-        LineRenderer line = ringObject.AddComponent<LineRenderer>();
-        line.useWorldSpace = false;
-        line.loop = true;
-        line.widthMultiplier = 0.025f;
-        line.positionCount = 128;
-        line.material = new Material(Shader.Find("Sprites/Default"))
-        {
-            color = new Color(0.65f, 0.82f, 1.0f, 0.45f)
-        };
-
-        for (int i = 0; i < line.positionCount; i++)
-        {
-            float t = (float)i / line.positionCount * Mathf.PI * 2.0f;
-            line.SetPosition(i, new Vector3(Mathf.Cos(t) * radius, 0.0f, Mathf.Sin(t) * radius));
+            bool hiddenAtNucleus = position.magnitude < nucleusHideRadius;
+            electrons[i].position = position;
+            electrons[i].gameObject.SetActive(!motion.Hidden && !hiddenAtNucleus);
+            electronMotions[i] = motion;
         }
     }
 
@@ -426,6 +386,123 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
         return firstShellRadius + shell * shellSpacing;
     }
 
+    private ElectronMotion CreateElectronMotion(int zeroBasedElectronIndex)
+    {
+        int electronNumber = zeroBasedElectronIndex + 1;
+        ElectronMotion motion = new()
+        {
+            Phase = zeroBasedElectronIndex * 73.0f,
+            SpeedMultiplier = UnityEngine.Random.Range(0.82f, 1.18f),
+            MoveUntil = Time.time + UnityEngine.Random.Range(1.0f, 5.0f),
+            HiddenUntil = -1.0f
+        };
+
+        if (electronNumber <= 2)
+        {
+            motion.Shape = OrbitalShape.Sphere;
+            motion.Radius = firstShellRadius * 0.82f;
+            motion.Tilt = Quaternion.Euler(20.0f, electronNumber * 57.0f, 0.0f);
+            return motion;
+        }
+
+        if (electronNumber <= 4)
+        {
+            motion.Shape = OrbitalShape.Sphere;
+            motion.Radius = firstShellRadius + shellSpacing * 0.55f;
+            motion.Tilt = Quaternion.Euler(38.0f, electronNumber * 47.0f, 18.0f);
+            return motion;
+        }
+
+        if (electronNumber <= 10)
+        {
+            motion.Shape = OrbitalShape.Dumbbell;
+            motion.Axis = GetAxisForDumbbellElectron(electronNumber - 5);
+            motion.Radius = firstShellRadius + shellSpacing * 1.15f;
+            motion.Width = 0.8f;
+            return motion;
+        }
+
+        if (electronNumber <= 12)
+        {
+            motion.Shape = OrbitalShape.Sphere;
+            motion.Radius = firstShellRadius + shellSpacing * 1.85f;
+            motion.Tilt = Quaternion.Euler(52.0f, electronNumber * 31.0f, 26.0f);
+            return motion;
+        }
+
+        if (electronNumber <= 18)
+        {
+            motion.Shape = OrbitalShape.Dumbbell;
+            motion.Axis = GetAxisForDumbbellElectron(electronNumber - 13);
+            motion.Radius = firstShellRadius + shellSpacing * 2.35f;
+            motion.Width = 0.95f;
+            return motion;
+        }
+
+        motion.Shape = OrbitalShape.Sphere;
+        motion.Radius = firstShellRadius + shellSpacing * 3.0f;
+        motion.Tilt = Quaternion.Euler(65.0f, electronNumber * 29.0f, 35.0f);
+        return motion;
+    }
+
+    private void UpdateVisibilityCycle(ref ElectronMotion motion)
+    {
+        float now = Time.time;
+        if (!motion.Hidden && now >= motion.MoveUntil)
+        {
+            motion.Hidden = true;
+            motion.HiddenUntil = now + 2.0f;
+            return;
+        }
+
+        if (motion.Hidden && now >= motion.HiddenUntil)
+        {
+            motion.Hidden = false;
+            motion.MoveUntil = now + UnityEngine.Random.Range(1.0f, 5.0f);
+        }
+    }
+
+    private Vector3 GetSphericalOrbitalPosition(ElectronMotion motion)
+    {
+        float radians = (orbitAngle * motion.SpeedMultiplier + motion.Phase) * Mathf.Deg2Rad;
+        Vector3 localPosition = new(
+            Mathf.Cos(radians) * motion.Radius,
+            Mathf.Sin(radians * 0.73f + motion.Phase * Mathf.Deg2Rad) * motion.Radius * 0.52f,
+            Mathf.Sin(radians) * motion.Radius);
+
+        return motion.Tilt * localPosition;
+    }
+
+    private Vector3 GetDumbbellOrbitalPosition(ElectronMotion motion)
+    {
+        Vector3 axis = motion.Axis.normalized;
+        Vector3 tangent = Vector3.Cross(axis, Vector3.up);
+        if (tangent.sqrMagnitude < 0.001f)
+        {
+            tangent = Vector3.Cross(axis, Vector3.right);
+        }
+
+        tangent.Normalize();
+
+        float radians = (orbitAngle * motion.SpeedMultiplier + motion.Phase) * Mathf.Deg2Rad;
+        float alongAxis = Mathf.Sin(radians) * motion.Radius;
+        float lobeCurve = Mathf.Sin(radians * 2.0f) * motion.Width;
+        return axis * alongAxis + tangent * lobeCurve;
+    }
+
+    private static Vector3 GetAxisForDumbbellElectron(int orbitalIndex)
+    {
+        switch (orbitalIndex % 3)
+        {
+            case 0:
+                return Vector3.right;
+            case 1:
+                return Vector3.up;
+            default:
+                return Vector3.forward;
+        }
+    }
+
     private static Vector3 GetNucleonPosition(int index, int total)
     {
         if (total <= 1)
@@ -483,5 +560,25 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
         public int Protons { get; }
         public int Electrons { get; }
         public int Neutrons { get; }
+    }
+
+    private enum OrbitalShape
+    {
+        Sphere,
+        Dumbbell
+    }
+
+    private struct ElectronMotion
+    {
+        public OrbitalShape Shape;
+        public Vector3 Axis;
+        public Quaternion Tilt;
+        public float Radius;
+        public float Width;
+        public float Phase;
+        public float SpeedMultiplier;
+        public float MoveUntil;
+        public float HiddenUntil;
+        public bool Hidden;
     }
 }
