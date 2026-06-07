@@ -61,6 +61,7 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
     private float cameraPitch = 22.0f;
     private float orbitAngle;
     private int selectedElementIndex = 1;
+    private int pendingElementIndex = -1;
     private GUIStyle panelStyle;
     private GUIStyle selectedButtonStyle;
     private float previousPinchDistance;
@@ -103,6 +104,8 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
 
     private void Update()
     {
+        ApplyPendingElementSelection();
+
         if (nucleusRoot == null)
         {
             return;
@@ -116,6 +119,25 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
         UpdateTouchControls();
     }
 
+    private void ApplyPendingElementSelection()
+    {
+        if (pendingElementIndex < 0)
+        {
+            return;
+        }
+
+        int nextElementIndex = pendingElementIndex;
+        pendingElementIndex = -1;
+
+        if (nextElementIndex == selectedElementIndex)
+        {
+            return;
+        }
+
+        selectedElementIndex = nextElementIndex;
+        BuildAtom(Elements[selectedElementIndex]);
+    }
+
     private void OnGUI()
     {
         InitializeGuiStyles();
@@ -127,36 +149,54 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
         float scaledWidth = Screen.width / scale;
         float scaledHeight = Screen.height / scale;
         float panelWidth = scaledWidth < 520.0f ? scaledWidth - 24.0f : 230.0f;
+        float panelHeight = Mathf.Min(scaledHeight - 24.0f, 430.0f);
 
-        GUILayout.BeginArea(new Rect(12.0f, 12.0f, panelWidth, scaledHeight - 24.0f), panelStyle);
-        GUILayout.Label($"{selected.AtomicNumber}. {selected.Symbol}  {selected.Name}");
-        GUILayout.Space(6.0f);
-        GUILayout.Label($"양성자: {selected.Protons}");
-        GUILayout.Label($"중성자: {selected.Neutrons}");
-        GUILayout.Label($"전자: {selected.Electrons}");
-        GUILayout.Label($"전자 배치: {FormatShells(GetShellCounts(selected.Electrons))}");
-        GUILayout.Space(10.0f);
+        GUI.Box(new Rect(12.0f, 12.0f, panelWidth, panelHeight), GUIContent.none, panelStyle);
+        float x = 24.0f;
+        float y = 24.0f;
+        float contentWidth = panelWidth - 24.0f;
+
+        GUI.Label(new Rect(x, y, contentWidth, 24.0f), $"{selected.AtomicNumber}. {selected.Symbol}  {selected.Name}");
+        y += 30.0f;
+        GUI.Label(new Rect(x, y, contentWidth, 22.0f), $"양성자: {selected.Protons}");
+        y += 22.0f;
+        GUI.Label(new Rect(x, y, contentWidth, 22.0f), $"중성자: {selected.Neutrons}");
+        y += 22.0f;
+        GUI.Label(new Rect(x, y, contentWidth, 22.0f), $"전자: {selected.Electrons}");
+        y += 22.0f;
+        GUI.Label(new Rect(x, y, contentWidth, 22.0f), $"전자 배치: {FormatShells(GetShellCounts(selected.Electrons))}");
+        y += 34.0f;
+
+        DrawElementButtons(x, y, contentWidth);
+
+        GUI.matrix = previousMatrix;
+    }
+
+    private void DrawElementButtons(float x, float y, float contentWidth)
+    {
+        float gap = 6.0f;
+        float buttonWidth = (contentWidth - gap) * 0.5f;
+        float buttonHeight = 28.0f;
 
         for (int row = 0; row < 10; row++)
         {
-            GUILayout.BeginHorizontal();
             for (int column = 0; column < 2; column++)
             {
                 int index = row * 2 + column;
                 ElementData element = Elements[index];
+                Rect rect = new(
+                    x + column * (buttonWidth + gap),
+                    y + row * (buttonHeight + gap),
+                    buttonWidth,
+                    buttonHeight);
+
                 GUIStyle style = index == selectedElementIndex ? selectedButtonStyle : GUI.skin.button;
-                if (GUILayout.Button($"{element.AtomicNumber} {element.Symbol}", style, GUILayout.Height(30.0f)))
+                if (GUI.Button(rect, $"{element.AtomicNumber} {element.Symbol}", style))
                 {
-                    selectedElementIndex = index;
-                    BuildAtom(element);
+                    pendingElementIndex = index;
                 }
             }
-
-            GUILayout.EndHorizontal();
         }
-
-        GUILayout.EndArea();
-        GUI.matrix = previousMatrix;
     }
 
     private void BuildAtom(ElementData element)
