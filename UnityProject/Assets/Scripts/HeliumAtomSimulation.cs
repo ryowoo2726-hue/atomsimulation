@@ -57,7 +57,6 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
     private int[] electronShells = Array.Empty<int>();
     private float[] electronOffsets = Array.Empty<float>();
     private Camera orbitCamera;
-    private Vector3 cameraTarget = Vector3.zero;
     private float cameraYaw;
     private float cameraPitch = 22.0f;
     private float orbitAngle;
@@ -330,14 +329,6 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
             cameraPitch = Mathf.Clamp(cameraPitch, -75.0f, 75.0f);
         }
 
-        if (Input.GetMouseButton(1))
-        {
-            float panScale = cameraDistance * 0.0035f;
-            Vector3 pan = -orbitCamera.transform.right * Input.GetAxis("Mouse X") * panScale
-                - orbitCamera.transform.up * Input.GetAxis("Mouse Y") * panScale;
-            cameraTarget += pan;
-        }
-
         float scroll = Input.mouseScrollDelta.y;
         if (Mathf.Abs(scroll) > 0.001f)
         {
@@ -395,7 +386,7 @@ public sealed class HeliumAtomSimulation : MonoBehaviour
 
         Quaternion rotation = Quaternion.Euler(cameraPitch, cameraYaw, 0.0f);
         Vector3 offset = rotation * new Vector3(0.0f, 0.0f, -cameraDistance);
-        orbitCamera.transform.position = cameraTarget + offset;
+        orbitCamera.transform.position = Vector3.zero + offset;
         orbitCamera.transform.rotation = rotation;
     }
 
