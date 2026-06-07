@@ -6,6 +6,7 @@ public sealed class SimulationController : MonoBehaviour
     [SerializeField] private int particleCount = 24;
     [SerializeField] private GameObject particlePrefab;
     [SerializeField] private Transform particleRoot;
+    [SerializeField] private Material particleMaterial;
 
     private readonly List<Transform> particles = new();
     private NativeSimulation simulation;
@@ -16,6 +17,7 @@ public sealed class SimulationController : MonoBehaviour
         {
             particlePrefab = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             particlePrefab.transform.localScale = Vector3.one * 0.25f;
+            ApplyParticleMaterial(particlePrefab);
             particlePrefab.SetActive(false);
         }
 
@@ -61,7 +63,18 @@ public sealed class SimulationController : MonoBehaviour
             GameObject instance = Instantiate(particlePrefab, particleRoot);
             instance.name = $"Particle_{i:00}";
             instance.SetActive(true);
+            ApplyParticleMaterial(instance);
             particles.Add(instance.transform);
         }
+    }
+
+    private void ApplyParticleMaterial(GameObject target)
+    {
+        if (particleMaterial == null || !target.TryGetComponent(out Renderer targetRenderer))
+        {
+            return;
+        }
+
+        targetRenderer.sharedMaterial = particleMaterial;
     }
 }

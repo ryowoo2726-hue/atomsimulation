@@ -7,6 +7,16 @@
 [Ll]ogs/
 [Uu]ser[Ss]ettings/
 
+# This repository stores the Unity project under UnityProject/.
+# Ignore accidental Unity project files created at the repository root.
+/[Aa]ssets/
+/[Pp]ackages/
+/[Pp]roject[Ss]ettings/
+/[Ll]ibrary/
+/[Ll]ogs/
+/[Tt]emp/
+/[Uu]ser[Ss]ettings/
+
 # Unity cache / IDE
 .vs/
 .vscode/
@@ -20,14 +30,28 @@
 # Native build output
 native/build/
 native/bin/
+UnityProject/Assets/Plugins/x86_64/Release/
+UnityProject/Assets/Plugins/x86_64/Release.meta
+UnityProject/Assets/Library/
+UnityProject/Assets/Library.meta
+UnityProject/Assets/Logs/
+UnityProject/Assets/Logs.meta
+UnityProject/Assets/UserSettings/
+UnityProject/Assets/UserSettings.meta
 *.dll
+*.dll.meta
 *.lib
+*.lib.meta
 *.pdb
+*.pdb.meta
 *.exp
+*.exp.meta
 *.obj
 *.o
 *.so
+*.so.meta
 *.dylib
+*.dylib.meta
 
 # OS
 Thumbs.db

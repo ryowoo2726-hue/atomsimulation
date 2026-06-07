@@ -12,7 +12,7 @@ Unity는 기본 스크립트 언어가 C#이라서, C 코드는 네이티브 플
 
 ## 필요 도구
 
-- Unity 2022.3 LTS 이상
+- Unity 6000.4.10f1 이상
 - CMake 3.20 이상
 - C 컴파일러
   - Windows: Visual Studio Build Tools, MSVC
@@ -21,24 +21,77 @@ Unity는 기본 스크립트 언어가 C#이라서, C 코드는 네이티브 플
 ## 첫 실행
 
 1. Unity Hub에서 `UnityProject` 폴더를 엽니다.
-2. 네이티브 플러그인을 빌드합니다.
+2. `Assets/atom.unity` 씬을 엽니다.
+3. Play 버튼을 누릅니다.
+
+현재 메인 예시는 원자번호 1번부터 20번까지 볼 수 있는 원자 모형입니다. Play를 누르면 왼쪽 패널의 원소 버튼으로 원자 모형을 바꿀 수 있습니다.
+
+각 원소는 입력된 양성자, 중성자, 전자 수를 사용하며 전자는 1-20번 원소 기준 전자껍질 `2-8-8-2` 규칙으로 배치됩니다.
+
+카메라 조작:
+
+- 왼쪽 마우스 드래그: 원자핵 중심으로 카메라 회전
+- 마우스 휠: 확대/축소
+- 오른쪽 마우스 드래그: 카메라 기준 이동
+
+`atom.unity` 씬의 기본 오브젝트 이름은 다음과 같이 사용됩니다.
+
+- `nucleus`: 양성자 템플릿
+- `neutron`: 중성자 템플릿
+- `electron`: 전자 템플릿
+
+## C 네이티브 플러그인 빌드
+
+네이티브 C 코어로 실행하려면 플러그인을 빌드합니다.
 
    ```powershell
    ./tools/build-native.ps1
    ```
 
-3. 빌드 결과가 아래 위치에 생성되는지 확인합니다.
+빌드 결과가 아래 위치에 생성되면 Unity가 자동으로 `SimulationCore` DLL을 사용합니다.
 
    ```text
    UnityProject/Assets/Plugins/x86_64/SimulationCore.dll
    ```
 
-4. Unity에서 새 씬을 만들고 다음을 추가합니다.
-   - 빈 GameObject: `SimulationController`
-   - `SimulationController` 스크립트 부착
-   - 작은 Sphere prefab을 `Particle Prefab`에 연결
+## WebGL 배포
 
-`Particle Prefab`을 연결하지 않아도 실행 시 기본 Sphere를 만들어 사용합니다.
+WebGL 빌드는 Unity 메뉴에서 `Build > Build WebGL`을 실행하거나 아래 명령으로 생성합니다.
+
+```powershell
+& "C:\Program Files\Unity\Hub\Editor\6000.4.10f1\Editor\Unity.exe" -batchmode -quit -projectPath ".\UnityProject" -executeMethod WebGLBuildTools.BuildWebGL
+```
+
+빌드 결과:
+
+```text
+UnityProject/Builds/WebGL
+```
+
+로컬 확인:
+
+```powershell
+cd UnityProject/Builds/WebGL
+python -m http.server 8080
+```
+
+브라우저에서 `http://localhost:8080`으로 접속합니다. 파일을 직접 더블클릭해서 여는 방식은 WebGL 로딩이 막힐 수 있으니 로컬 서버로 확인하세요.
+
+현재 WebGL 설정:
+
+- WebGL 빌드 타겟 자동 전환
+- 128MB WebGL 메모리
+- 예외 지원 비활성화
+- 데이터 캐싱 활성화
+- Decompression Fallback 활성화
+- 씬 내 콜라이더 제거
+- 모바일/태블릿 터치 회전 및 핀치 줌 지원
+
+배포 후보:
+
+- 간단한 정적 호스팅: GitHub Pages, Netlify, Vercel
+- 학교/수업용 공유: itch.io HTML5 업로드도 가능
+- 직접 서버: `index.html`, `Build/`, `TemplateData/` 전체를 같은 폴더 구조로 업로드
 
 ## 현재 샘플
 
