@@ -6,6 +6,8 @@
 [Bb]uilds/
 [Ll]ogs/
 [Uu]ser[Ss]ettings/
+!docs/Build/
+!docs/Build/**
 
 # This repository stores the Unity project under UnityProject/.
 # Ignore accidental Unity project files created at the repository root.
